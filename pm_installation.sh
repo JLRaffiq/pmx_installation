@@ -2,25 +2,7 @@
 
 # Step 1: Update APT Cache
 apt update
-
-# Step 2: Configure Static IP Address
-tee /etc/network/interfaces >/dev/null <<'EOF'
-auto enp0s3
-iface enp0s3 inet static
-        address 192.168.2.103/24
-        network 192.168.2.0
-        broadcast 192.168.2.255
-        gateway 192.168.2.1
-        dns-nameservers 8.8.8.8
-EOF
-systemctl restart NetworkManager
-
-# Step 3: Configure Hostname Resolution
-hostnamectl set-hostname proxmox
-exec bash
-echo "192.168.2.103  proxmox" | sudo tee -a /etc/hosts >/dev/null
-hostname
-hostname --ip-address
+apt -y install wget
 
 # Step 4: Add the Proxmox VE Repository
 apt install curl software-properties-common apt-transport-https ca-certificates gnupg2 -y
