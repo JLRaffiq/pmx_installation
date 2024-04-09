@@ -1,46 +1,43 @@
 #!/bin/bash
 
-# Check if running as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root"
-  exit 1
-fi
+# Step 1: Update APT Cache
+sudo apt update
 
-# Function to log messages
-log() {
-  logger -t setup-script -p local0.info "$1"
-}
-
-# Set up Proxmox repository
-cat <<EOF > /etc/apt/sources.list.d/pve.list
-deb http://download.proxmox.com/debian/pve bookworm pve-no-subscription
+# Step 2: Configure Static IP Address
+sudo tee /etc/network/interfaces >/dev/null <<'EOF'
+auto enp0s3
+iface enp0s3 inet static
+        address 192.168.2.103/24
+        network 192.168.2.0
+        broadcast 192.168.2.255
+        gateway 192.168.2.1
+        dns-nameservers 8.8.8.8
 EOF
+sudo systemctl restart NetworkManager
 
-# Install Proxmox keys
-wget -qO- https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg | apt-key add -
-
-# Update after adding Proxmox repository
-apt -y update
-
-# Install Proxmox Virtual Environment
-apt -y install proxmox-ve
-
-# Set hostname and IP
-hostname=$(hostname)
-ipadd=$(ip addr show $(ip route | awk '/default/ { print $5 }') | grep "inet" | head -n 1 | awk '/inet/ {print $2}' | cut -d'/' -f1)
-log "Hostname: $hostname"
-log "IP Address: $ipadd"
-sed -i "/$hostname/c$ipadd\t$hostname" /etc/hosts
+# Step 3: Configure Hostname Resolution
+sudo hostnamectl set-hostname proxmox
+exec bash
+echo "192.168.2.103  proxmox" | sudo tee -a /etc/hosts >/dev/null
+hostname
 hostname --ip-address
 
-# Set up postfix
-debconf-set-selections <<< "postfix postfix/mailname string $hostname"
-debconf-set-selections <<< "postfix postfix/main_mailer_type string 'Internet Site'"
-apt -y install postfix
+# Step 4: Add the Proxmox VE Repository
+sudo apt install curl software-properties-common apt-transport-https ca-certificates gnupg2 -y
+echo "deb [arch=amd64] http://download.proxmox.com/debian/pve bookworm pve-no-subscription" | sudo tee /etc/apt/sources.list.d/pve-install-repo.list >/dev/null
+wget https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg
+sudo apt update && sudo apt full-upgrade -y
 
-# Set up open-iscsi
-apt -y install open-iscsi
+# Step 5: Install the Proxmox Kernel
+sudo apt install proxmox-default-kernel -y
 
-# Reboot
-log "Rebooting the system"
-reboot
+# Step 6: Install the Proxmox Packages
+sudo apt install proxmox-ve postfix open-iscsi chrony -y
+
+# Step 7: Remove the Linux Kernel
+sudo apt remove linux-image-amd64 'linux-image-6.1*' -y
+sudo update-grub
+sudo apt remove os-prober -y
+
+# Step 8: Reboot
+sudo reboot
