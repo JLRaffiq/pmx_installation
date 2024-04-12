@@ -1,41 +1,54 @@
 #!/bin/bash
 
-# make sure root
-if [ "$EUID" -ne 0 ]
-  then echo "Please run as root"
-  exit
+# Ensure script is run as root
+if [ "$EUID" -ne 0 ]; then
+  echo "Please run as root"
+  exit 1
 fi
-#
-apt update
-#
-### Hostname-IP
-hostname=`hostname`
-ipadd=`ip addr show $(ip route | awk '/default/ { print $5 }') | grep "inet" | head -n 1 | awk '/inet/ {print $2}' | cut -d'/' -f1`
-echo $hostname
-echo $ipadd
-sed -i "/$hostname/c$ipadd\t$hostname" /etc/hosts
-hostname --ip-address
-#
+
 # Add the Proxmox VE Repository
-apt install curl software-properties-common apt-transport-https ca-certificates gnupg2 
-#
-echo "deb [arch=amd64] http://download.proxmox.com/debian/pve bookworm pve-no-subscription" > /etc/apt/sources.list.d/pve-install-repo.list
-#
-wget https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg  
-#
-apt update && apt full-upgrade
-#
-apt apt install proxmox-default-kernel -y
-#
-apt install proxmox-ve postfix open-iscsi chrony
-#
-ss -tunpl | grep 8006
-#
-apt remove linux-image-amd64 'linux-image-6.1*'
-#
-update-grub
-#
-apt remove os-prober
-#
-reboot
-#
+add_proxmox_repo() {
+  echo "Adding Proxmox VE Repository..."
+  echo "deb [arch=amd64] http://download.proxmox.com/debian/pve bookworm pve-no-subscription" > /etc/apt/sources.list.d/pve-install-repo.list
+  wget -qO- https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg | apt-key add -
+}
+
+# Update system and install necessary packages
+update_system() {
+  echo "Updating system and installing necessary packages..."
+  apt update
+  apt install -y curl software-properties-common apt-transport-https ca-certificates gnupg2
+}
+
+# Install Proxmox VE
+install_proxmox() {
+  echo "Installing Proxmox VE..."
+  apt update
+  apt full-upgrade -y
+  apt install -y proxmox-default-kernel proxmox-ve postfix open-iscsi chrony
+}
+
+# Remove unnecessary packages
+cleanup() {
+  echo "Cleaning up unnecessary packages..."
+  apt remove -y linux-image-amd64 'linux-image-6.1*' os-prober
+  update-grub
+}
+
+# Reboot the system
+reboot_system() {
+  echo "Rebooting the system..."
+  reboot
+}
+
+# Main function
+main() {
+  add_proxmox_repo
+  update_system
+  install_proxmox
+  cleanup
+  reboot_system
+}
+
+# Execute main function
+main
