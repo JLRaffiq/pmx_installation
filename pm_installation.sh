@@ -1,25 +1,39 @@
-#!/bin/bash
+# make sure root
 
-# Step 1: Update APT Cache
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
+fi
+
 apt update
-apt -y install wget
 
-# Step 4: Add the Proxmox VE Repository
-apt install curl software-properties-common apt-transport-https ca-certificates gnupg2 -y
-echo "deb [arch=amd64] http://download.proxmox.com/debian/pve bookworm pve-no-subscription" | sudo tee /etc/apt/sources.list.d/pve-install-repo.list >/dev/null
-wget https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg
-apt update && sudo apt full-upgrade -y
+### Hostname-IP
+hostname=`hostname`
+ipadd=`ip addr show $(ip route | awk '/default/ { print $5 }') | grep "inet" | head -n 1 | awk '/inet/ {print $2}' | cut -d'/' -f1`
+echo $hostname
+echo $ipadd
+sed -i "/$hostname/c$ipadd\t$hostname" /etc/hosts
+hostname --ip-address
 
-# Step 5: Install the Proxmox Kernel
-apt install proxmox-default-kernel -y
+# Add the Proxmox VE Repository
+apt install curl software-properties-common apt-transport-https ca-certificates gnupg2 
 
-# Step 6: Install the Proxmox Packages
-apt install proxmox-ve postfix open-iscsi chrony -y
+echo "deb [arch=amd64] http://download.proxmox.com/debian/pve bookworm pve-no-subscription" > /etc/apt/sources.list.d/pve-install-repo.list
 
-# Step 7: Remove the Linux Kernel
-apt remove linux-image-amd64 'linux-image-6.1*' -y
+wget https://enterprise.proxmox.com/debian/proxmox-release-bookworm.gpg -O /etc/apt/trusted.gpg.d/proxmox-release-bookworm.gpg  
+
+apt update && apt full-upgrade
+
+apt apt install proxmox-default-kernel -y
+
+apt install proxmox-ve postfix open-iscsi chrony
+
+ss -tunpl | grep 8006
+
+apt remove linux-image-amd64 'linux-image-6.1*'
+
 update-grub
-apt remove os-prober -y
 
-# Step 8: Reboot
+apt remove os-prober
+
 reboot
