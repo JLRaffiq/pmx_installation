@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  proxmox-scripts:
+    build: .
+    container_name: pmx-script-server
+    ports:
+      - "8080:80"
+    volumes:
+      # Mount scripts directory for easy updates without rebuilding
+      - ./:/var/www/html/scripts:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    environment:
+      - NGINX_HOST=localhost
+      - NGINX_PORT=80
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pmx-scripts.rule=Host(`scripts.local`)"
+      - "traefik.http.routers.pmx-scripts.entrypoints=web"
+      - "traefik.http.services.pmx-scripts.loadbalancer.server.port=80"
+    networks:
+      - pmx-network
+
+networks:
+  pmx-network:
+    driver: bridge
+    name: pmx-scripts-network
